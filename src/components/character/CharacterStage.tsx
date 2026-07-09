@@ -8,9 +8,11 @@ import { DialogueBubble } from './DialogueBubble'
 
 interface CharacterStageProps {
   onCharacterClick: () => void
+  spinning: boolean
+  spinSpeed: number
 }
 
-export function CharacterStage({ onCharacterClick }: CharacterStageProps) {
+export function CharacterStage({ onCharacterClick, spinning, spinSpeed }: CharacterStageProps) {
   const currentSubjectId = useTimerStore((s) => s.currentSubjectId)
   const status = useTimerStore((s) => s.status)
   const currentMessage = useUIStore((s) => s.currentMessage)
@@ -39,7 +41,7 @@ export function CharacterStage({ onCharacterClick }: CharacterStageProps) {
             transition={{ type: 'spring', stiffness: 200, damping: 20 }}
             className="relative flex items-center justify-center"
           >
-            {/* Sprite image — clickable */}
+            {/* Sprite image — clickable, with slow 360° spin */}
             <div
               style={{ transform: `scale(${subject.spriteScale ?? 1})`, transformOrigin: 'center center' }}
             >
@@ -58,14 +60,23 @@ export function CharacterStage({ onCharacterClick }: CharacterStageProps) {
             >
               {subject.spriteData.default ? (
                 <>
-                  <img
-                    src={subject.spriteData.default}
-                    alt={subject.name}
-                    className="w-[420px] h-[420px] object-contain rounded-2xl transition-transform duration-300 group-hover:scale-105"
+                  {/* 3D Y-axis rotation wrapper with perspective */}
+                  <div
+                    className="w-[420px] h-[420px] rounded-2xl"
                     style={{
+                      perspective: '800px',
                       filter: `drop-shadow(0 0 30px ${subject.color}30) drop-shadow(0 10px 30px rgba(0,0,0,0.3))`,
                     }}
-                  />
+                  >
+                    <img
+                      src={subject.spriteData.default}
+                      alt={subject.name}
+                      className="w-full h-full object-contain rounded-2xl transition-transform duration-300 group-hover:scale-105"
+                      style={{
+                        animation: spinning ? `spin360 ${spinSpeed}s linear infinite` : 'none',
+                      }}
+                    />
+                  </div>
                   {/* Hover hint */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl bg-black/20">
                     <span className="text-white/80 text-sm bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20">
