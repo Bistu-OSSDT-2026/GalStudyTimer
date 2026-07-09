@@ -4,7 +4,7 @@
 
 **GalStudyTimer** 是一款受视觉小说 (GalGame) 风格启发的番茄钟学习计时器，将枯燥的计时变成与 AI 角色互动的沉浸式体验。选择一个学习科目，搭配专属角色伙伴，在专注中收获成就与陪伴。
 
-![GalStudyTimer](public/bg.jpg)
+![GalStudyTimer 主界面](assets/screenshot.png)
 
 ---
 
