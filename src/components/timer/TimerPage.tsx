@@ -18,6 +18,8 @@ export function TimerPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatSubject, setChatSubject] = useState<Subject | null>(null)
+  const [spinning, setSpinning] = useState(true)
+  const [spinSpeed, setSpinSpeed] = useState(30) // seconds per full rotation
   const currentSubjectId = useTimerStore((s) => s.currentSubjectId)
 
   const {
@@ -45,7 +47,7 @@ export function TimerPage() {
         {/* Left: Subject selector + Character */}
         <div className="flex flex-col items-center justify-center gap-6 order-2 lg:order-1">
           <SubjectSelector />
-          <CharacterStage onCharacterClick={() => setChatOpen(!chatOpen)} />
+          <CharacterStage onCharacterClick={() => setChatOpen(!chatOpen)} spinning={spinning} spinSpeed={spinSpeed} />
         </div>
 
         {/* Right: Timer */}
@@ -117,13 +119,35 @@ export function TimerPage() {
           />
         </div>
 
-        {/* Settings button */}
-        <button
-          className="absolute top-4 right-4 btn-ghost text-sm"
-          onClick={() => setSettingsOpen(true)}
-        >
-          ⚙ 计时设置
-        </button>
+        {/* Top-right buttons */}
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <button
+            className="btn-ghost text-sm"
+            onClick={() => setSpinning(!spinning)}
+            title={spinning ? '暂停立绘旋转' : '开始立绘旋转'}
+          >
+            {spinning ? '🔄 旋转中' : '⏸ 已暂停'}
+          </button>
+          {/* Speed slider */}
+          <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-1.5 border border-white/10">
+            <span className="text-xs text-white/30 shrink-0">转速</span>
+            <input
+              type="range"
+              min={3}
+              max={60}
+              value={spinSpeed}
+              onChange={(e) => setSpinSpeed(Number(e.target.value))}
+              className="w-20 h-1 cursor-pointer accent-primary-500"
+            />
+            <span className="text-xs text-white/50 w-7 text-right tabular-nums">{spinSpeed}s</span>
+          </div>
+          <button
+            className="btn-ghost text-sm"
+            onClick={() => setSettingsOpen(true)}
+          >
+            ⚙ 计时设置
+          </button>
+        </div>
 
         {/* Session counter */}
         {status !== 'idle' && (
