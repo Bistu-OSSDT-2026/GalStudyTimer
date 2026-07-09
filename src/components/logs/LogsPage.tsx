@@ -1,28 +1,106 @@
 import { useEffect, useState } from 'react'
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts'
 import { db } from '../../db'
 import { formatDate, formatDuration, getToday } from '../../utils/time'
 import type { StudyLog, Subject } from '../../types'
+
+interface DailyData {
+  date: string      // YYYY-MM-DD
+  label: string     // MM-DD for display
+  minutes: number
+}
 
 export function LogsPage() {
   const [logs, setLogs] = useState<StudyLog[]>([])
   const [subjects, setSubjects] = useState<Map<number, Subject>>(new Map())
   const [filter, setFilter] = useState<'all' | 'today' | 'week'>('all')
+  const [chartData, setChartData] = useState<DailyData[]>([])
+  // Key to force refresh when page regains focus
+  const [refreshKey, setRefreshKey] = useState(0)
 
+  // Refresh data when navigating back to this page
+  useEffect(() => {
+    const handleFocus = () => setRefreshKey((k) => k + 1)
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [])
+
+  // Refresh on mount and when filter changes
   useEffect(() => {
     db.subjects.toArray().then((sList) => {
       const map = new Map<number, Subject>()
       sList.forEach((s) => s.id && map.set(s.id, s))
       setSubjects(map)
+    }).catch((err) => {
+      console.error('[LogsPage] Failed to load subjects:', err)
     })
   }, [])
 
+  // Fetch logs — sort in JS instead of orderBy() since startTime is not indexed
   useEffect(() => {
-    let query = db.studyLogs.orderBy('startTime').reverse()
-    if (filter === 'today') {
-      query = query.filter((l) => l.date === getToday()) as typeof query
-    }
-    query.limit(100).toArray().then(setLogs)
-  }, [filter])
+    console.log('[LogsPage] Fetching logs, filter:', filter, 'refreshKey:', refreshKey)
+
+    const promise = filter === 'all'
+      ? db.studyLogs.toArray()
+      : filter === 'today'
+        ? db.studyLogs.where('date').equals(getToday()).toArray()
+        : (async () => {
+            // Week filter: fetch recent logs and filter by week in JS
+            const now = new Date()
+            const dayOfWeek = now.getDay()
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+            const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset)
+            const mondayStr = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+            const all = await db.studyLogs.toArray()
+            return all.filter((l) => l.date >= mondayStr)
+          })()
+
+    promise.then((result) => {
+      // Sort by startTime descending in JS
+      result.sort((a, b) => b.startTime - a.startTime)
+      const sliced = result.slice(0, 100)
+      console.log('[LogsPage] Loaded logs:', sliced.length)
+      setLogs(sliced)
+    }).catch((err) => {
+      console.error('[LogsPage] Failed to load logs:', err)
+    })
+  }, [filter, refreshKey])
+
+  // Load ALL focus logs for the chart (aggregated by day)
+  useEffect(() => {
+    db.studyLogs
+      .where('type')
+      .equals('focus')
+      .toArray()
+      .then((focusLogs) => {
+        // Aggregate by date
+        const dailyMap = new Map<string, number>()
+        for (const log of focusLogs) {
+          const prev = dailyMap.get(log.date) ?? 0
+          dailyMap.set(log.date, prev + Math.round(log.duration / 60))
+        }
+        // Sort by date ascending and convert to array
+        const sorted = [...dailyMap.entries()]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, minutes]) => ({
+            date,
+            label: date.slice(5), // MM-DD
+            minutes,
+          }))
+        setChartData(sorted)
+      })
+      .catch((err) => {
+        console.error('[LogsPage] Failed to load chart data:', err)
+      })
+  }, [logs.length, refreshKey])
 
   const totalMinutes = logs.reduce((sum, l) => sum + l.duration / 60, 0)
   const focusLogs = logs.filter((l) => l.type === 'focus')
@@ -48,6 +126,75 @@ export function LogsPage() {
           <div className="text-xs text-white/40 mt-1">今日完成</div>
         </div>
       </div>
+
+      {/* ── Daily study chart ── */}
+      {chartData.length > 0 && (
+        <div className="glass-card p-5 mb-6">
+          <h3 className="text-sm font-medium text-white/60 mb-4">📈 每日学习趋势</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }}
+                tickLine={false}
+                axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.35)' }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                label={{
+                  value: '分钟',
+                  position: 'insideTopLeft',
+                  offset: 4,
+                  style: { fontSize: 10, fill: 'rgba(255,255,255,0.25)' },
+                }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: 'rgba(30,30,40,0.95)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  color: '#fff',
+                }}
+                labelFormatter={(label) => `📅 ${label}`}
+                formatter={(value: number) => [
+                  <span className="text-gradient font-bold">{`${value} 分钟`}</span>,
+                  '学习时长',
+                ]}
+              />
+              <Line
+                type="monotone"
+                dataKey="minutes"
+                stroke="url(#chartGradient)"
+                strokeWidth={2.5}
+                dot={{
+                  r: 3,
+                  fill: '#a78bfa',
+                  stroke: 'rgba(167,139,250,0.3)',
+                  strokeWidth: 4,
+                }}
+                activeDot={{
+                  r: 5,
+                  fill: '#c4b5fd',
+                  stroke: 'rgba(196,181,253,0.5)',
+                  strokeWidth: 6,
+                }}
+              />
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#7c3aed" />
+                  <stop offset="100%" stopColor="#a78bfa" />
+                </linearGradient>
+              </defs>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Filter */}
       <div className="flex gap-2 mb-4">

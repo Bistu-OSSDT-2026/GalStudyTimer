@@ -136,6 +136,22 @@ const DEFAULT_ACHIEVEMENTS: Achievement[] = [
     unlockedAt: null,
     progress: 0,
   },
+  {
+    id: ACHIEVEMENT_IDS.EARLY_BIRD,
+    title: '早起鸟儿',
+    description: '在早上7点前完成一次学习',
+    icon: '🌅',
+    unlockedAt: null,
+    progress: 0,
+  },
+  {
+    id: ACHIEVEMENT_IDS.NIGHT_OWL,
+    title: '夜猫子',
+    description: '在晚上11点后完成一次学习',
+    icon: '🦉',
+    unlockedAt: null,
+    progress: 0,
+  },
 ]
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -200,6 +216,15 @@ export async function seedIfEmpty(): Promise<void> {
   if (achievementCount === 0) {
     await db.achievements.bulkAdd(DEFAULT_ACHIEVEMENTS)
     console.log('[Seed] Added default achievements')
+  } else {
+    // Migration: add any missing achievements (e.g. early_bird, night_owl added later)
+    const existingIds = new Set((await db.achievements.toArray()).map((a) => a.id))
+    for (const def of DEFAULT_ACHIEVEMENTS) {
+      if (!existingIds.has(def.id)) {
+        await db.achievements.add(def)
+        console.log(`[Seed] Added missing achievement: ${def.title}`)
+      }
+    }
   }
 
   const settingsCount = await db.settings.count()
