@@ -108,6 +108,7 @@ export function TimerPage() {
           {/* Controls */}
           <TimerControls
             status={status}
+            hasSubject={currentSubjectId !== null}
             onStart={start}
             onPause={pause}
             onResume={resume}

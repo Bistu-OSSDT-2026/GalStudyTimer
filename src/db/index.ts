@@ -53,6 +53,18 @@ export class GalStudyDB extends Dexie {
       chatMessages: '++id, subjectId, timestamp',
       blobStore: 'key',
     })
+
+    // v4: add startTime index to studyLogs for efficient ordering
+    this.version(4).stores({
+      subjects: '++id, name, isArchived, createdAt',
+      studyLogs: '++id, subjectId, date, type, startTime, [date+subjectId]',
+      achievements: 'id, unlockedAt',
+      settings: 'id',
+      affectionScores: '++id, subjectId',
+      audioTracks: '++id, category, source',
+      chatMessages: '++id, subjectId, timestamp',
+      blobStore: 'key',
+    })
   }
 }
 
